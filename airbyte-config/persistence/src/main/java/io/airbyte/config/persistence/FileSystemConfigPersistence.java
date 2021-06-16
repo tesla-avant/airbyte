@@ -24,11 +24,9 @@
 
 package io.airbyte.config.persistence;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.Lists;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.config.ConfigSchema;
-import io.airbyte.validation.json.JsonSchemaValidator;
 import io.airbyte.validation.json.JsonValidationException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,22 +37,20 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 // we force all interaction with disk storage to be effectively single threaded.
-public class DefaultConfigPersistence implements ConfigPersistence {
+public class FileSystemConfigPersistence implements ConfigPersistence {
 
   private static final String CONFIG_DIR = "config";
 
   private static final Object lock = new Object();
 
-  private final JsonSchemaValidator jsonSchemaValidator;
   private final Path storageRoot;
 
-  public DefaultConfigPersistence(final Path storageRoot) {
-    this(storageRoot, new JsonSchemaValidator());
+  public static ConfigPersistence createWithValidation(final Path storageRoot) {
+    return new ValidatingConfigPersistence(new FileSystemConfigPersistence(storageRoot));
   }
 
-  public DefaultConfigPersistence(final Path storageRoot, final JsonSchemaValidator schemaValidator) {
+  public FileSystemConfigPersistence(final Path storageRoot) {
     this.storageRoot = storageRoot.resolve(CONFIG_DIR);
-    jsonSchemaValidator = schemaValidator;
   }
 
   @Override
@@ -73,24 +69,21 @@ public class DefaultConfigPersistence implements ConfigPersistence {
   }
 
   @Override
-  public <T> void writeConfig(ConfigSchema configType, String configId, T config) throws JsonValidationException, IOException {
+  public <T> void writeConfig(ConfigSchema configType, String configId, T config) throws IOException {
     synchronized (lock) {
       writeConfigInternal(configType, configId, config);
     }
   }
 
   private <T> T getConfigInternal(ConfigSchema configType, String configId, Class<T> clazz)
-      throws ConfigNotFoundException, JsonValidationException, IOException {
+      throws ConfigNotFoundException, IOException {
     // validate file with schema
     final Path configPath = buildConfigPath(configType, configId);
     if (!Files.exists(configPath)) {
       throw new ConfigNotFoundException(configType, configId);
     }
 
-    final T config = Jsons.deserialize(Files.readString(configPath), clazz);
-    validateJson(config, configType);
-
-    return config;
+    return Jsons.deserialize(Files.readString(configPath), clazz);
   }
 
   private <T> List<T> listConfigsInternal(ConfigSchema configType, Class<T> clazz) throws JsonValidationException, IOException {
@@ -119,10 +112,7 @@ public class DefaultConfigPersistence implements ConfigPersistence {
     }
   }
 
-  private <T> void writeConfigInternal(ConfigSchema configType, String configId, T config) throws JsonValidationException, IOException {
-    // validate config with schema
-    validateJson(Jsons.jsonNode(config), configType);
-
+  private <T> void writeConfigInternal(ConfigSchema configType, String configId, T config) throws IOException {
     final Path configPath = buildConfigPath(configType, configId);
     Files.createDirectories(configPath.getParent());
 
@@ -135,11 +125,6 @@ public class DefaultConfigPersistence implements ConfigPersistence {
 
   private Path buildTypePath(ConfigSchema type) {
     return storageRoot.resolve(type.toString());
-  }
-
-  private <T> void validateJson(T config, ConfigSchema configType) throws JsonValidationException {
-    JsonNode schema = JsonSchemaValidator.getSchema(configType.getFile());
-    jsonSchemaValidator.ensure(schema, Jsons.jsonNode(config));
   }
 
 }
