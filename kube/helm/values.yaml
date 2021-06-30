@@ -1,0 +1,186 @@
+replicaCount: 1
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: apache/airbyte
+  tag: "0.26.4-alpha" # <- Airbyte image version set here. Also update chart.yaml.
+  pullPolicy: IfNotPresent
+  label: "airbyte"
+  db: "airbyte/db"
+  scheduler: "airbyte/scheduler"
+  server: "airbyte/server"
+  seed: "airbyte/seed"
+  temporal: "temporalio/auto-setup"
+  temporalVersion: "1.7.0"
+  webapp: "airbyte/webapp"
+
+configmap:
+  mountPath: "/configMap"
+  configName: "airbyte-env"
+  configRoot: "/configs"
+  workspaceRoot: "/workspace"
+  dataDockerMount: "airbyte_data"
+  dbDockerMount: "airbyte_db"
+  workspaceDockerMount: "airbyte_workspace"
+  apiURL: /api/v1/
+  # webAppURL: "airbyte-webapp-svc:80"  ->  "{{ .Values.webapp.service.name }}:{{ .Values.webapp.service.port }}"
+  trackingStrategy: "segment"
+  workerEnvironment: "kubernetes"
+  localRoot: "/tmp/airbyte_local"
+  papercupsStorytime: "enabled"
+  fullStory: "enabled"
+  isDemo: "false"
+  # temporalHost: "airbyte-temporal-svc:7233"  -> "{{ .Values.temporal.service.name }}:{{ .Values.temporal.service.port }}"
+  # internalAPIHost: "airbyte-server-svc:8001" -> "{{ .Values.server.service.name }}:{{ .Values.server.service.port }}"
+  temporalWorkerPorts: "9001,9002,9003,9004,9005,9006,9007,9008,9009,9010,9011,9012,9013,9014,9015,9016,9017,9018,9019,9020,9021,9022,9023,9024,9025,9026,9027,9028,9029,9030"
+
+db:
+  name: "airbyte-db-container"
+  metadataName: "airbyte-db"
+  service:
+    name: "airbyte-db-svc"
+    protocol: "TCP"
+    type: "NodePort"
+    url: "jdbc:postgresql"
+  label: "db"
+  postgres:
+    user: "docker"
+    password: "docker"
+    db: "db-airbyte"
+    dbConfigMap: "airbyte"
+    dbTemporal: "postgresql"
+    port: "5432"
+
+scheduler:
+  name: "airbyte-scheduler-container"
+  metadataName: "airbyte-scheduler"
+  label: "scheduler"
+
+server:
+  name: "airbyte-server-container"
+  metadataName: "airbyte-server"
+  label: "server"
+  service:
+    name: "airbyte-server-svc"
+    port: "8001"
+    type: "NodePort"
+    protocol: "TCP"
+
+seed:
+  name: "airbyte-seed"
+
+temporal:
+  name: "airbyte-temporal"
+  label: "temporal"
+  file:
+    name: "development.yaml"
+    configPath: "config/dynamicconfig/"
+  configmap:
+    name: "airbyte-temporal-dynamicconfig"
+    mountPath: "/etc/temporal/config/dynamicconfig/"
+  service:
+    name: "airbyte-temporal-svc"
+    type: "NodePort"
+    protocol: "TCP"
+    port: "7233"
+
+webapp:
+  name: "airbyte-webapp-container"
+  label: "webapp"
+  metadataName: "airbyte-webapp"
+  service:
+    name: "airbyte-webapp-svc"
+    protocol: "TCP"
+    type: "NodePort"
+    port: "80"
+
+persistence:
+  enabled: true
+  azure_blob:
+    storageClass:
+      name: "airbyte-blob"
+      driver: "blob.csi.azure.com"
+      secret: "aks-secret"
+      reclaimPolicy: "Retain"
+      volumeBindingMode: "Immediate"
+      resourceGroup: "$ENVIRONMENT_TAG-$RESOURCE_GROUP"  # All storage is expected to be in the same storage account / resource group.
+      storageAccount: "$ENVIRONMENT_TAG$STORAGE_ACCOUNT"
+      secret: "airbyte-secret"
+  db:
+    volumeName: "airbyte-volume-db"
+    mountPath: "/var/lib/postgresql"
+    azure_blob:
+      pv:
+        metadataName: "airbyte-db-blob"
+        storage: "1Gi"
+        accessModes: "ReadWriteMany"
+        persistentVolumeReclaimPolicy: "Retain" # "Delete" is not supported in static provisioning
+        volumeHandle: "airbyte-db-blob" # make sure this volumeid is unique in the cluster
+        containerName: "airbytedb"
+      pvc:
+        name: "airbyte-volume-db"
+        labels: "volume-db"
+        accessModes: "ReadWriteMany"
+        storage: "1Gi"
+  volumeConfigs:
+    volumeName: "airbyte-volume-configs"
+    mountPath: "/configs"
+    azure_blob:
+      pv:
+        metadataName: "airbyte-config-blob"
+        storage: "1Gi"
+        accessModes: "ReadWriteMany"
+        persistentVolumeReclaimPolicy: "Retain" # "Delete" is not supported in static provisioning
+        volumeHandle: "airbyte-config-blob" # make sure this volumeid is unique in the cluster
+        containerName: "airbyteconfig"
+      pvc:
+        name: "airbyte-volume-configs"
+        labels: "volume-configs"
+        accessModes: "ReadWriteMany"
+        storage: "1Gi"
+  workspace:
+    volumeName: "airbyte-volume-workspace"
+    mountPath: "/workspace"
+    azure_blob:
+      pv:
+        metadataName: "airbyte-volume-workspace-blob"
+        storage: "1Gi"
+        accessModes: "ReadWriteMany"
+        persistentVolumeReclaimPolicy: "Retain" # "Delete" is not supported in static provisioning
+        volumeHandle: "airbyte-volume-blob" # make sure this volumeid is unique in the cluster
+        containerName: "airbytevolumeworkspace"
+      pvc:
+        name: "airbyte-volume-workspace"
+        labels: "volume-workspace"
+        accessModes: "ReadWriteMany"
+        storage: "1Gi"
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: "airbyte-admin"
+  rbac:
+    name: "airbyte-admin-role"
+    roleBinding: "airbyte-admin-binding"
+    roleRef: "airbyte-admin-role"
+    rules:
+      apiGroups: "*"
+      resources: ["jobs", "pods", "pods/log", "pods/exec", "pods/attach"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] # over-permission for now
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

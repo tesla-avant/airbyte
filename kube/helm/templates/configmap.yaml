@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.configmap.configName }}
+data:
+  AIRBYTE_VERSION: {{ .Values.image.tag }}
+  API_URL: {{ .Values.configmap.apiURL }}
+  AWS_ACCESS_KEY_ID: ""
+  AWS_SECRET_ACCESS_KEY: ""
+  CONFIG_ROOT: {{ .Values.configmap.configRoot }}
+  DATA_DOCKER_MOUNT: {{ .Values.configmap.dataDockerMount }}
+  DATABASE_USER: {{ .Values.db.postgres.user }}
+  DATABASE_PASSWORD: {{ .Values.db.postgres.password }}
+  DATABASE_URL: "{{ .Values.db.service.url }}://{{ .Values.db.service.name }}:{{ .Values.db.postgres.port }}/{{ .Values.db.postgres.dbConfigMap }}"
+  DATABASE_DB: {{ .Values.db.postgres.dbConfigMap }}
+  DB_DOCKER_MOUNT: {{ .Values.configmap.dbDockerMount }}
+  FULLSTORY: {{ .Values.configmap.fullStory }}
+  INTERNAL_API_HOST: "{{ .Values.server.service.name }}:{{ .Values.server.service.port }}"
+  IS_DEMO: "{{ .Values.configmap.isDemo }}"
+  LOCAL_ROOT: {{ .Values.configmap.localRoot }}
+  PAPERCUPS_STORYTIME: {{ .Values.configmap.papercupsStorytime }}
+  POSTGRES_DB: {{ .Values.db.postgres.db }}
+  S3_LOG_BUCKET: ""
+  S3_LOG_BUCKET_REGION: ""
+  TEMPORAL_HOST: "{{ .Values.temporal.service.name }}:{{ .Values.temporal.service.port }}"
+  TEMPORAL_WORKER_PORTS: {{ .Values.configmap.temporalWorkerPorts }}
+  TRACKING_STRATEGY: {{ .Values.configmap.trackingStrategy }}
+  WEBAPP_URL: "{{ .Values.webapp.service.name }}:{{ .Values.webapp.service.port }}"
+  WORKER_ENVIRONMENT: {{ .Values.configmap.workerEnvironment }}
+  WORKSPACE_DOCKER_MOUNT: {{ .Values.configmap.workspaceDockerMount }}
+  WORKSPACE_ROOT: {{ .Values.configmap.workspaceRoot }}

@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.server.service.name }}
+spec:
+  type: {{ .Values.server.service.type }}
+  ports:
+    - port: {{ .Values.server.service.port }}
+      protocol: {{ .Values.server.service.protocol }}
+  selector:
+    airbyte: {{ .Values.server.label }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.server.metadataName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      airbyte: {{ .Values.server.label }}
+  template:
+    metadata:
+      labels:
+        airbyte: {{ .Values.server.label }}
+    spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: airbyte
+                    operator: In
+                    values:
+                      - {{ .Values.scheduler.label }}
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: {{ .Values.server.name }}
+          image: "{{ .Values.image.server }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          env:
+            - name: AIRBYTE_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: AIRBYTE_VERSION
+            - name: CONFIG_ROOT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: CONFIG_ROOT
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: DATABASE_PASSWORD
+            - name: DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: DATABASE_URL
+            - name: DATABASE_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: DATABASE_USER
+            - name: TRACKING_STRATEGY
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: TRACKING_STRATEGY
+            - name: WAIT_BEFORE_HOSTS
+              value: "5"
+            - name: WAIT_HOSTS
+              value: {{ .Values.db.service.name }}:{{ .Values.db.postgres.port }}
+            - name: WAIT_HOSTS_TIMEOUT
+              value: "45"
+            - name: WORKER_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: WORKER_ENVIRONMENT
+            - name: WORKSPACE_ROOT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: WORKSPACE_ROOT
+            - name: WEBAPP_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: WEBAPP_URL
+            - name: TEMPORAL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: TEMPORAL_HOST
+            - name: S3_LOG_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: S3_LOG_BUCKET
+            - name: S3_LOG_BUCKET_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: S3_LOG_BUCKET_REGION
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.configmap.configName }}
+                  key: AWS_SECRET_ACCESS_KEY
+          ports:
+            - containerPort:  {{ .Values.server.service.port }}
+          volumeMounts:
+            - name: {{ .Values.persistence.volumeConfigs.volumeName }}
+              mountPath: {{ .Values.persistence.volumeConfigs.mountPath }}
+            - name: {{ .Values.persistence.workspace.volumeName }}
+              mountPath: {{ .Values.persistence.workspace.mountPath }}
+            - name: {{ .Values.configmap.configName }}
+              mountPath:  {{ .Values.configmap.mountPath }}
+              readOnly: true
+      volumes:
+        - name: {{ .Values.persistence.workspace.volumeName }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.workspace.volumeName }}
+        - name: {{ .Values.persistence.volumeConfigs.volumeName }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.volumeConfigs.volumeName }}
+        - name: {{ .Values.configmap.configName }}
+          configMap:
+            name: {{ .Values.configmap.configName }}
